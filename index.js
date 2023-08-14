@@ -51,8 +51,16 @@ io.of("\host").on("connection", (socket) => {
     console.log("host joined")
 
     socket.on("hostGame", (args, callBack) => {
-        console.log("hosting " + args.gameName);
+        
+        console.log("hosting " + args.gameName + " " + socket.id);
         onlineGameData = {id: socket.id, gameName:args.gameName, state: GameStates.wait};
+        onlineGameData.gameSettings = {
+            width: 15,
+            height: 15,
+            bush: 0,
+            gasoline: 0,
+            box: 0
+        };
         onlineGames.push(onlineGameData);
         io.of("\join").emit("newOnlineGame", onlineGameData);
         callBack();
@@ -66,16 +74,12 @@ io.of("\host").on("connection", (socket) => {
 
         io.of("\inRoom").to(socket.id).emit("gameStarted");
 
-    }).on("applyGameSettings", args => {
+    }).on("settingChanged", args => {
+        console.log(args);
         hostedGame = onlineGames.find((val, i, arr) => val.id == socket.id);
-        hostedGame.gameSettings = {
-            width: args.width,
-            height: args.height,
-            bush: args.bush,
-            gasoline: args.gasoline,
-            box: args.box
-        };
-
+        hostedGame.gameSettings[args.name] = args.value;
+        io.of("\inRoom").to(socket.id).emit("settingChanged", args);
+        
     }).on("disconnecting" , args => {
         hostedGame = onlineGames.find((val, i, arr) => val.id == socket.id);
         hostedGame.state = GameStates.closed;
@@ -84,7 +88,8 @@ io.of("\host").on("connection", (socket) => {
         console.log("game closed with name: " + socket.id);
         onlineGames.splice(onlineGames.findIndex((val, i, arr) => val.id == socket.id), 1);
 
-        io.of("\inRoom").to(Array.from(socket.rooms)[1]).emit("gameClosed");
+        io.of("\inRoom").to(socket.id).emit("gameClosed");
+
     });
 });
 
@@ -115,8 +120,8 @@ io.of("\inRoom").on("connection", (socket) => {
 
     }).on("playerLogged", args => {
         config = JSON.parse(JSON.stringify(tankConfig));
-        if(args.disabled) config.barrel.barrelName = "DisabledBarrel";
         player = {id: socket.id, name: args.name, tankConfig: config};
+
         if(playersInRooms[Array.from(socket.rooms)[1]]) {
             playersInRooms[Array.from(socket.rooms)[1]].push(player);
             socket.broadcast.in(Array.from(socket.rooms)[1]).emit("playerJoined", player);
@@ -127,7 +132,6 @@ io.of("\inRoom").on("connection", (socket) => {
         socket.emit("getPlayers", playersInRooms[Array.from(socket.rooms)[1]]);  
 
     }).on("ready", args => {
-        console.log("afafa");
         socket.emit("getPlayers", playersInRooms[Array.from(socket.rooms)[1]]);  
 
     }).on("getGameSettings", (args, callBack) => {
@@ -135,8 +139,8 @@ io.of("\inRoom").on("connection", (socket) => {
         console.log(hostedGame.gameSettings);
         callBack(hostedGame.gameSettings);  
 
-    }).on("disconnect" , args => {
-        console.log("player disconnected with name: " + socket.id);
+    }).on("disconnecting", args => {
+        socket.broadcast.in(Array.from(socket.rooms)[1]).emit("playerLeft", {id:socket.id});
         
         inRoom = playersInRooms[Array.from(socket.rooms)[1]];
         if(!inRoom) return;
@@ -144,6 +148,9 @@ io.of("\inRoom").on("connection", (socket) => {
             if(inRoom[i].id == socket.id)
                 inRoom.splice(i, 1);
         }
+         
+    }).on("disconnect" , args => {
+        console.log("player disconnected with name: " + socket.id);
 
     }) .on("playerShot", () => {
         socket.broadcast.to(Array.from(socket.rooms)[1]).emit("playerShot", {id: socket.id});
