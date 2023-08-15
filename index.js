@@ -69,6 +69,7 @@ io.of("\host").on("connection", (socket) => {
         console.log("game started " + socket.id);
         
         hostedGame = onlineGames.find((val, i, arr) => val.id == socket.id);
+        hostedGame.seed = Math.floor(Math.random() * 10000);
         hostedGame.state = GameStates.run;
         io.of("\join").emit("gameStarted", hostedGame);
 
@@ -145,7 +146,6 @@ io.of("\inRoom").on("connection", (socket) => {
     }).on("getGameSettings", (args, callBack) => {
         hostedGame = onlineGames.find((val, i, arr) => val.id == args.roomId);
         console.log(hostedGame.gameSettings);
-        hostedGame.seed;
         callBack({gameSettings:hostedGame.gameSettings, seed:hostedGame.seed});  
 
     }).on("getScore", (args, callBack) => {
