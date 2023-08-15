@@ -8,7 +8,7 @@ const LEATHAL_HIT_POINTS = 30;
 
 const GameStates = {
     wait: "WAITING",
-    running: "RUNNING",
+    run: "RUNNING",
     closed: "CLOSED"
 }
 
@@ -53,7 +53,7 @@ io.of("\host").on("connection", (socket) => {
     socket.on("hostGame", (args, callBack) => {
         
         console.log("hosting " + args.gameName + " " + socket.id);
-        onlineGameData = {id: socket.id, gameName:args.gameName, state: GameStates.wait};
+        onlineGameData = {id: socket.id, gameName:args.gameName, seed:args.seed, state: GameStates.wait};
         onlineGameData.gameSettings = {
             width: 15,
             height: 15,
@@ -69,10 +69,18 @@ io.of("\host").on("connection", (socket) => {
         console.log("game started " + socket.id);
         
         hostedGame = onlineGames.find((val, i, arr) => val.id == socket.id);
-        hostedGame.state = GameStates.running;
+        hostedGame.state = GameStates.run;
         io.of("\join").emit("gameStarted", hostedGame);
 
         io.of("\inRoom").to(socket.id).emit("gameStarted");
+
+    }).on("endGame", args => {
+        playersInRooms[socket.id].forEach((player) => player.score = 0);
+
+        hostedGame = onlineGames.find((val, i, arr) => val.id == socket.id);
+        hostedGame.state = GameStates.wait;
+
+        io.of("\join").emit("gameEnded", hostedGame);
 
     }).on("settingChanged", args => {
         console.log(args);
@@ -120,7 +128,7 @@ io.of("\inRoom").on("connection", (socket) => {
 
     }).on("playerLogged", args => {
         config = JSON.parse(JSON.stringify(tankConfig));
-        player = {id: socket.id, name: args.name, tankConfig: config};
+        player = {id: socket.id, name: args.name, tankConfig: config, score: 0};
 
         if(playersInRooms[Array.from(socket.rooms)[1]]) {
             playersInRooms[Array.from(socket.rooms)[1]].push(player);
@@ -137,18 +145,20 @@ io.of("\inRoom").on("connection", (socket) => {
     }).on("getGameSettings", (args, callBack) => {
         hostedGame = onlineGames.find((val, i, arr) => val.id == args.roomId);
         console.log(hostedGame.gameSettings);
-        callBack(hostedGame.gameSettings);  
+        hostedGame.seed;
+        callBack({gameSettings:hostedGame.gameSettings, seed:hostedGame.seed});  
+
+    }).on("getScore", (args, callBack) => {
+        inRoom = playersInRooms[Array.from(socket.rooms)[1]]
+        callBack(inRoom);
 
     }).on("disconnecting", args => {
         socket.broadcast.in(Array.from(socket.rooms)[1]).emit("playerLeft", {id:socket.id});
         
         inRoom = playersInRooms[Array.from(socket.rooms)[1]];
-        if(!inRoom) return;
-        for(i = 0; i < inRoom.length; i++) {
-            if(inRoom[i].id == socket.id)
-                inRoom.splice(i, 1);
-        }
-         
+        if(inRoom);
+            inRoom.splice(inRoom.findIndex((val, i, arr) => val.id == socket.id), 1); 
+
     }).on("disconnect" , args => {
         console.log("player disconnected with name: " + socket.id);
 
@@ -164,13 +174,20 @@ io.of("\inRoom").on("connection", (socket) => {
         socket.broadcast.to(Array.from(socket.rooms)[1]).emit("playerMoved", args);
 
     }).on("hit", args => {
-        console.log("gained 10 points");
+        console.log(socket.id + "gained " + HIT_POINTS + " points");
         socket.broadcast.to(Array.from(socket.rooms)[1]).emit("gainsPoints", {id:socket.id, points: HIT_POINTS});
+
+        inRoom = playersInRooms[Array.from(socket.rooms)[1]];
+        inRoom.find((val, i, arr) => val.id == socket.id).score += HIT_POINTS;
         socket.emit("gainsPoints", {id:"player", points: HIT_POINTS});
 
     }).on("lethalHit", args => {
-        console.log("gained 30 points");
+        console.log(socket.id + "gained " + LEATHAL_HIT_POINTS + " points");
         socket.broadcast.to(Array.from(socket.rooms)[1]).emit("gainsPoints", {id:socket.id, points: LEATHAL_HIT_POINTS});
+
+        inRoom = playersInRooms[Array.from(socket.rooms)[1]];
+        inRoom.find((val, i, arr) => val.id == socket.id).score += LEATHAL_HIT_POINTS;
+
         socket.emit("gainsPoints", {id:"player", points: LEATHAL_HIT_POINTS});
     });
 });
