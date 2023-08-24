@@ -172,9 +172,14 @@ io.of("\inRoom").on("connection", (socket) => {
     }).on("playerMoved", args => {
         args.id = socket.id;
         socket.broadcast.to(Array.from(socket.rooms)[1]).emit("playerMoved", args);
+    
+    }).on("takeDamage", args => {
+        console.log(socket.id + " took damage " + args.damage);
+        args.id = socket.id;
+        socket.broadcast.to(Array.from(socket.rooms)[1]).emit("takesDamage", args);
 
     }).on("hit", args => {
-        console.log(socket.id + "gained " + HIT_POINTS + " points");
+        console.log(socket.id + " gained " + HIT_POINTS + " points");
         socket.broadcast.to(Array.from(socket.rooms)[1]).emit("gainsPoints", {id:socket.id, points: HIT_POINTS});
 
         inRoom = playersInRooms[Array.from(socket.rooms)[1]];
@@ -182,7 +187,7 @@ io.of("\inRoom").on("connection", (socket) => {
         socket.emit("gainsPoints", {id:"player", points: HIT_POINTS});
 
     }).on("lethalHit", args => {
-        console.log(socket.id + "gained " + LEATHAL_HIT_POINTS + " points");
+        console.log(socket.id + " gained " + LEATHAL_HIT_POINTS + " points");
         socket.broadcast.to(Array.from(socket.rooms)[1]).emit("gainsPoints", {id:socket.id, points: LEATHAL_HIT_POINTS});
 
         inRoom = playersInRooms[Array.from(socket.rooms)[1]];
